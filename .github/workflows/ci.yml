@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Typecheck, unit tests, UI gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm test
+      - name: UI gate (index.test.html, staging)
+        run: npm run test:ui
+      - name: UI gate (index.html, production)
+        run: npm run test:ui:prod
+      - name: index.html only changes by promotion
+        run: node scripts/check-prod.mjs
+
+  encode:
+    name: DXV encode on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Fetch and verify ffmpeg (real DXV encode)
+        run: npm run fetch-ffmpeg
+      - run: npm run test:integration
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-source-${{ matrix.os }}
+          path: vendor/ffmpeg/*/SOURCE.json

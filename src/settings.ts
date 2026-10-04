@@ -40,6 +40,8 @@ export interface Settings {
   autoReplace: boolean;
   /** Convert clips that already hold non-DXV media when Arena first connects. */
   convertExistingOnConnect: boolean;
+  /** Swap a clip while it is playing. Off = wait until it stops playing. */
+  swapWhileLive: boolean;
   /** Restore clip name and transport params after swapping. */
   restoreClipProps: boolean;
   /** Body format for the clip open call. */
@@ -83,6 +85,7 @@ export const DEFAULT_SETTINGS: Settings = {
   moveOriginalsTo: '',
   autoReplace: true,
   convertExistingOnConnect: false,
+  swapWhileLive: false,
   restoreClipProps: true,
   fileUriStyle: 'raw',
   watchFolders: [],

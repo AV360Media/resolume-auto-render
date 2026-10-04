@@ -142,3 +142,27 @@ async function waitForPath(rest: ArenaRest, id: number, layer: number, column: n
   }
   return false;
 }
+
+/** True when Arena reports the clip as playing on its layer. Option names come from the clip's `connected` choice param. */
+export function isLive(clip: ArenaClip | null | undefined): boolean {
+  const v = String(paramValue(clip?.connected) ?? '');
+  return /^connected/i.test(v);
+}
+
+/**
+ * Waits while the clip is playing, so the swap does not cause a visible reload on stage.
+ * Resolves when the clip is not live or no longer found (the swap then decides what to do).
+ */
+export async function waitUntilNotLive(rest: ArenaRest, ref: ClipRef, signal: AbortSignal, onWait: () => void, pollMs = 1000): Promise<void> {
+  let told = false;
+  for (;;) {
+    if (signal.aborted) throw new Error('aborted');
+    const pos = await locateClip(rest, ref).catch(() => null);
+    if (!pos || !isLive(pos.clip)) return;
+    if (!told) {
+      onWait();
+      told = true;
+    }
+    await sleep(pollMs);
+  }
+}

@@ -7,3 +7,4 @@ vendor/ffmpeg/
 .DS_Store
 coverage/
 test-output/
+arena-dump/

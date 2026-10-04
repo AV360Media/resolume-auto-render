@@ -188,6 +188,7 @@ export class MockArena {
         file = file.replace(/^file:\/\/\//, '');
         if (/%[0-9A-F]{2}/i.test(file)) file = decodeURIComponent(file);
         if (!/^[A-Za-z]:/.test(file)) file = '/' + file;
+        else if (process.platform === 'win32') file = file.replace(/\//g, '\\');
         this.setFile(clip, file, this.opts.resetOnOpen);
         if (this.opts.pushOnOpen) this.push();
         res.writeHead(204);

@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resolume Auto Render</title>
+<style>
+  :root {
+    --bg: #0d0f12;
+    --panel: #15181d;
+    --panel-2: #1c2027;
+    --line: #2a2f38;
+    --text: #e8eaed;
+    --muted: #9aa3ae;
+    --accent: #3fa7ff;
+    --ok: #35d07f;
+    --warn: #ffb547;
+    --bad: #ff5a5f;
+    --radius: 10px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; min-height: 100vh; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #001221; font-weight: 600; }
+  button.small { padding: 2px 8px; font-size: 13px; }
+  header {
+    display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); background: var(--panel);
+    position: sticky; top: 0; z-index: 5;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  .spacer { flex: 1; }
+  .badge { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn); color: #241600; }
+  .badge[hidden] { display: none; }
+  .status {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-radius: var(--radius); background: var(--panel-2);
+    border: 1px solid var(--line); min-width: 280px;
+  }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--muted); flex: none; }
+  .status[data-state="connected"] .dot { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  .status[data-state="connecting"] .dot { background: var(--warn); }
+  .status[data-state="disconnected"] .dot { background: var(--bad); }
+  .status strong { font-size: 18px; display: block; }
+  .status span { color: var(--muted); font-size: 13px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; padding: 20px 24px; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  section h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .count { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; }
+  .count b { display: block; font-size: 28px; line-height: 1.1; }
+  .count small { color: var(--muted); }
+  .add { display: flex; gap: 8px; margin-bottom: 14px; }
+  .add input { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  #queue { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  #queue .empty { color: var(--muted); padding: 24px; text-align: center; }
+  .job { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .job-top { display: flex; align-items: baseline; gap: 10px; }
+  .job-name { font-weight: 600; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .job-state { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .job[data-state="done"] .job-state { color: var(--ok); }
+  .job[data-state="failed"] .job-state { color: var(--bad); }
+  .job[data-state="skipped"] .job-state, .job[data-state="cancelled"] .job-state { color: var(--warn); }
+  .job[data-state="encoding"] .job-state, .job[data-state="swapping"] .job-state, .job[data-state="validating"] .job-state { color: var(--accent); }
+  .job-meta { color: var(--muted); font-size: 13px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job-err { color: var(--bad); font-size: 13px; margin-top: 4px; word-break: break-word; }
+  .job-warn { color: var(--warn); font-size: 13px; margin-top: 4px; }
+  .bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+  .fill { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .job[data-state="done"] .fill { background: var(--ok); }
+  .job[data-state="failed"] .fill { background: var(--bad); }
+  .bar.indeterminate .fill {
+    width: 30% !important; animation: slide 1.2s infinite ease-in-out;
+  }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+  .job-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .job-actions[hidden] { display: none; }
+  #logs {
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; height: 420px; overflow: auto; background: var(--bg);
+    border-radius: 8px; padding: 8px; margin: 0; white-space: pre-wrap; word-break: break-word;
+  }
+  #logs .warn { color: var(--warn); }
+  #logs .error { color: var(--bad); }
+  #logs .debug { color: #66707c; }
+  .banner { background: #10324d; border: 1px solid var(--accent); padding: 10px 24px; display: flex; gap: 12px; align-items: center; }
+  .banner[hidden] { display: none; }
+  .banner a { color: var(--accent); }
+  .notice { background: #3a2a0c; border: 1px solid var(--warn); color: #ffe2b0; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
+  .notice[hidden] { display: none; }
+  /* Settings drawer */
+  #settings-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--panel); border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform .2s; z-index: 10; display: flex; flex-direction: column;
+  }
+  #settings-drawer.open { transform: none; }
+  .drawer-form { display: flex; flex-direction: column; height: 100%; }
+  .drawer-head { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); gap: 10px; }
+  .drawer-head h2 { margin: 0; font-size: 18px; }
+  .drawer-body { overflow: auto; padding: 16px 20px 40px; flex: 1; }
+  fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 16px; padding: 12px 14px; }
+  legend { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; padding: 0 6px; }
+  .field { display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center; margin: 8px 0; }
+  .field label { color: var(--muted); font-size: 14px; }
+  .field input[type="text"], .field input[type="number"], .field select, .field textarea {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%;
+  }
+  .field input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; accent-color: var(--accent); }
+  .field textarea { min-height: 64px; resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 2px 0 8px; }
+  .backends { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .backends th, .backends td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .backends .yes { color: var(--ok); }
+  .backends .no { color: var(--bad); }
+  .backends ul { margin: 4px 0 0; padding-left: 16px; color: var(--muted); }
+  #scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 9; }
+  #scrim[hidden] { display: none; }
+  .saved { color: var(--ok); font-size: 13px; }
+  .saved[hidden] { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Resolume Auto Render</h1>
+  <span id="mode-badge" class="badge" hidden>TEST UI</span>
+  <div class="spacer"></div>
+  <div id="conn-status" class="status" data-state="connecting">
+    <div class="dot"></div>
+    <div>
+      <strong id="conn-text">Connecting…</strong>
+      <span id="conn-detail">Waiting for companion</span>
+    </div>
+  </div>
+  <button id="open-settings" type="button">Settings</button>
+</header>
+
+<div id="update-banner" class="banner" hidden>
+  <span id="update-text">Update available.</span>
+  <a id="update-link" href="https://github.com/bryanchorton/resolume-auto-render/releases" target="_blank" rel="noopener">Download</a>
+</div>
+
+<main>
+  <section aria-labelledby="queue-title">
+    <h2 id="queue-title">Queue <span class="spacer"></span><button id="clear-finished" type="button" class="small">Clear finished</button></h2>
+    <div id="ffmpeg-notice" class="notice" hidden></div>
+    <div class="counts">
+      <div class="count"><b id="count-active">0</b><small>Working</small></div>
+      <div class="count"><b id="count-queued">0</b><small>Waiting</small></div>
+      <div class="count"><b id="count-done">0</b><small>Done</small></div>
+      <div class="count"><b id="count-failed">0</b><small>Failed</small></div>
+    </div>
+    <form id="add-form" class="add">
+      <input id="add-path" type="text" placeholder="Path to a video file to convert" aria-label="Path to a video file">
+      <button type="submit" class="primary">Convert</button>
+    </form>
+    <ul id="queue" aria-live="polite"><li class="empty">Nothing queued. Load a clip in Arena or drop a file into a watch folder.</li></ul>
+  </section>
+
+  <section aria-labelledby="log-title">
+    <h2 id="log-title">Log</h2>
+    <pre id="logs"></pre>
+  </section>
+</main>
+
+<div id="scrim" hidden></div>
+<aside id="settings-drawer" aria-label="Settings" inert>
+  <form id="settings-form" class="drawer-form">
+  <div class="drawer-head">
+    <h2>Settings</h2>
+    <span id="saved" class="saved" hidden>Saved</span>
+    <div class="spacer"></div>
+    <button id="save-settings" type="submit" class="primary">Save</button>
+    <button id="close-settings" type="button">Close</button>
+  </div>
+  <div class="drawer-body">
+    <fieldset>
+      <legend>Arena</legend>
+      <div class="field"><label for="s-arenaHost">Host</label><input id="s-arenaHost" data-key="arenaHost" type="text"></div>
+      <div class="field"><label for="s-arenaPort">Port</label><input id="s-arenaPort" data-key="arenaPort" type="number" min="1" max="65535"></div>
+      <div class="field"><label for="s-pollIntervalMs">Poll interval (ms)</label><input id="s-pollIntervalMs" data-key="pollIntervalMs" type="number" min="0" step="100"></div>
+      <p class="hint">Enable the web server in Arena: Preferences &gt; Web Server. Poll interval 0 relies on WebSocket pushes only.</p>
+      <div class="field"><label for="s-autoReplace">Auto-replace clips</label><input id="s-autoReplace" data-key="autoReplace" type="checkbox"></div>
+      <div class="field"><label for="s-swapWhileLive">Swap clips while playing</label><input id="s-swapWhileLive" data-key="swapWhileLive" type="checkbox"></div>
+      <div class="field"><label for="s-restoreClipProps">Restore name and transport</label><input id="s-restoreClipProps" data-key="restoreClipProps" type="checkbox"></div>
+      <div class="field"><label for="s-convertExistingOnConnect">Convert clips already loaded</label><input id="s-convertExistingOnConnect" data-key="convertExistingOnConnect" type="checkbox"></div>
+      <div class="field"><label for="s-fileUriStyle">File URI style</label>
+        <select id="s-fileUriStyle" data-key="fileUriStyle"><option value="raw">Raw (default)</option><option value="encoded">Percent-encoded</option></select></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Encoding</legend>
+      <div class="field"><label for="s-codec">Codec</label>
+        <select id="s-codec" data-key="codec"><option value="dxv">DXV</option><option value="hap">HAP (not DXV)</option></select></div>
+      <div class="field"><label for="s-quality">Quality</label>
+        <select id="s-quality" data-key="quality"><option value="normal">Normal</option><option value="high">High</option></select></div>
+      <div class="field"><label for="s-alpha">Alpha</label>
+        <select id="s-alpha" data-key="alpha"><option value="auto">Auto (from source)</option><option value="on">Always</option><option value="off">Never</option></select></div>
+      <div class="field"><label for="s-onHqUnavailable">If High Quality is impossible</label>
+        <select id="s-onHqUnavailable" data-key="onHqUnavailable"><option value="downgrade">Encode Normal, warn</option><option value="skip">Skip, keep original</option></select></div>
+      <div class="field"><label for="s-onAlphaUnavailable">If alpha is impossible</label>
+        <select id="s-onAlphaUnavailable" data-key="onAlphaUnavailable"><option value="skip">Skip, keep original</option><option value="downgrade">Drop alpha, warn</option></select></div>
+      <div class="field"><label for="s-dxvFit">FFmpeg DXV sizing</label>
+        <select id="s-dxvFit" data-key="dxvFit"><option value="pad">Pad to 16 (black edges)</option><option value="scale">Scale to 16</option></select></div>
+      <div class="field"><label for="s-backend">Preferred backend</label>
+        <select id="s-backend" data-key="backend"><option value="auto">Auto</option></select></div>
+      <div class="field"><label for="s-concurrency">Parallel encodes</label><input id="s-concurrency" data-key="concurrency" type="number" min="1" max="8"></div>
+      <div id="capability-warning" class="notice" hidden></div>
+      <table class="backends" aria-label="Encoder backends">
+        <thead><tr><th>Backend</th><th>Status</th><th>Can do</th></tr></thead>
+        <tbody id="backends"></tbody>
+      </table>
+      <p><button id="refresh-backends" type="button" class="small">Re-check backends</button></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Files</legend>
+      <div class="field"><label for="s-outputFolder">Output folder</label><input id="s-outputFolder" data-key="outputFolder" type="text" placeholder="Empty: <original folder>/DXV"></div>
+      <div class="field"><label for="s-postConvert">After converting</label>
+        <select id="s-postConvert" data-key="postConvert"><option value="keep">Keep original</option><option value="move">Move original</option></select></div>
+      <div class="field"><label for="s-moveOriginalsTo">Move originals to</label><input id="s-moveOriginalsTo" data-key="moveOriginalsTo" type="text" placeholder="Empty: <original folder>/Originals"></div>
+      <div class="field"><label for="s-stableMs">Copy settle time (ms)</label><input id="s-stableMs" data-key="stableMs" type="number" min="500" step="500"></div>
+      <div class="field"><label for="s-watchFolders">Watch folders</label><textarea id="s-watchFolders" data-key="watchFolders" data-list="1" placeholder="One folder per line"></textarea></div>
+      <div class="field"><label for="s-ignore">Ignore list</label><textarea id="s-ignore" data-key="ignore" data-list="1" placeholder="Paths or patterns, one per line (*.webm, /archive/**)"></textarea></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Tools</legend>
+      <div class="field"><label for="s-ffmpegPath">ffmpeg path</label><input id="s-ffmpegPath" data-key="ffmpegPath" type="text" placeholder="Empty: bundled, then PATH"></div>
+      <div class="field"><label for="s-ffprobePath">ffprobe path</label><input id="s-ffprobePath" data-key="ffprobePath" type="text" placeholder="Empty: next to ffmpeg"></div>
+      <div class="field"><label for="s-alleyCliCommand">Alley CLI command</label><input id="s-alleyCliCommand" data-key="alleyCliCommand" type="text" placeholder="/path/cli --in {input} --out {output} --quality {quality} --alpha {alpha}"></div>
+      <div class="field"><label for="s-ameWatchFolder">AME watch folder</label><input id="s-ameWatchFolder" data-key="ameWatchFolder" type="text"></div>
+      <div class="field"><label for="s-ameOutputFolder">AME output folder</label><input id="s-ameOutputFolder" data-key="ameOutputFolder" type="text"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>App</legend>
+      <div class="field"><label for="s-testMode">Test mode</label><input id="s-testMode" data-key="testMode" type="checkbox"></div>
+      <p class="hint">Test mode serves the staging UI (index.test.html) at the main address. The staging UI is always at /test.</p>
+      <div class="field"><label for="s-checkUpdates">Check for updates</label><input id="s-checkUpdates" data-key="checkUpdates" type="checkbox"></div>
+      <div class="field"><label for="s-uiPort">Control panel port</label><input id="s-uiPort" data-key="uiPort" type="number" min="1" max="65535"></div>
+      <p class="hint" id="version-line"></p>
+    </fieldset>
+  </div>
+  </form>
+</aside>
+
+<script>
+(function () {
+  'use strict';
+
+  var ACTIVE = { probing: 1, waiting: 1, encoding: 1, validating: 1, swapping: 1 };
+  var FINAL = { done: 1, skipped: 1, failed: 1, cancelled: 1 };
+  var STATE_LABEL = {
+    queued: 'Queued', waiting: 'Copying', probing: 'Reading', encoding: 'Encoding', validating: 'Checking',
+    swapping: 'Swapping', done: 'Done', skipped: 'Skipped', failed: 'Failed', cancelled: 'Cancelled'
+  };
+
+  var state = { jobs: {}, order: [], settings: null, backends: [], status: null, update: null, ffmpeg: null, version: '' };
+  var $ = function (id) { return document.getElementById(id); };
+  var isTestPage = location.pathname.replace(/\/+$/, '') === '/test';
+
+  function baseName(p) {
+    var parts = String(p || '').split(/[\\/]/);
+    return parts[parts.length - 1] || p;
+  }
+
+  function api(method, url, body) {
+    return fetch(url, {
+      method: method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().then(function (data) {
+        if (!r.ok) throw new Error(data && data.error ? data.error : 'Request failed');
+        return data;
+      });
+    });
+  }
+
+  // ---------- Connection status ----------
+  var uiLinked = false;
+  function renderStatus() {
+    var box = $('conn-status');
+    var text = $('conn-text');
+    var detail = $('conn-detail');
+    if (!uiLinked) {
+      box.dataset.state = 'disconnected';
+      text.textContent = 'Companion offline';
+      detail.textContent = 'Control panel lost its link to the companion app. Retrying.';
+      return;
+    }
+    var s = state.status;
+    if (!s) return;
+    box.dataset.state = s.state;
+    if (s.state === 'connected') {
+      var p = s.product;
+      text.textContent = 'Connected to ' + (p ? p.name + ' ' + p.major + '.' + p.minor + '.' + p.micro : 'Arena');
+      detail.textContent = s.host + ':' + s.port + (s.websocket ? ' · live updates' : ' · polling only');
+    } else if (s.state === 'connecting') {
+      text.textContent = 'Connecting to Arena';
+      detail.textContent = s.host + ':' + s.port;
+    } else {
+      text.textContent = 'Arena not reachable';
+      detail.textContent = s.host + ':' + s.port + (s.lastError ? ' · ' + s.lastError : '') + ' · Enable Preferences > Web Server';
+    }
+  }
+
+  // ---------- Queue ----------
+  function upsertJob(job) {
+    if (!state.jobs[job.id]) state.order.push(job.id);
+    state.jobs[job.id] = job;
+    renderJob(job);
+    renderCounts();
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function jobNode(job) {
+    var li = el('li', 'job');
+    li.id = 'job-' + job.id;
+    li.dataset.id = job.id;
+    var top = el('div', 'job-top');
+    top.appendChild(el('div', 'job-name'));
+    top.appendChild(el('div', 'job-state'));
+    li.appendChild(top);
+    li.appendChild(el('div', 'job-meta'));
+    var bar = el('div', 'bar');
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '100');
+    bar.appendChild(el('div', 'fill'));
+    li.appendChild(bar);
+    li.appendChild(el('div', 'job-warn'));
+    li.appendChild(el('div', 'job-err'));
+    var actions = el('div', 'job-actions');
+    [['retry', 'Retry'], ['cancel', 'Cancel'], ['ignore', 'Always ignore']].forEach(function (a) {
+      var b = el('button', 'small', a[1]);
+      b.type = 'button';
+      b.dataset.action = a[0];
+      actions.appendChild(b);
+    });
+    li.appendChild(actions);
+    return li;
+  }
+
+  function renderJob(job) {
+    var list = $('queue');
+    var empty = list.querySelector('.empty');
+    if (empty) empty.remove();
+    var li = $('job-' + job.id);
+    if (!li) {
+      li = jobNode(job);
+      list.insertBefore(li, list.firstChild);
+    }
+    li.dataset.state = job.state;
+    li.querySelector('.job-name').textContent = baseName(job.source);
+    li.querySelector('.job-name').title = job.source;
+    li.querySelector('.job-state').textContent = STATE_LABEL[job.state] || job.state;
+    var where = job.clip ? 'Layer ' + job.clip.layer + ', column ' + job.clip.column + (job.clip.name ? ' · ' + job.clip.name : '') : (job.origin === 'folder' ? 'Watch folder' : 'Manual');
+    var meta = [where];
+    if (job.backend) meta.push(job.backend);
+    if (job.detail) meta.push(job.detail);
+    li.querySelector('.job-meta').textContent = meta.join(' · ');
+    var bar = li.querySelector('.bar');
+    var pct = job.progress < 0 ? 0 : Math.round(job.progress * 100);
+    bar.classList.toggle('indeterminate', job.progress < 0 && !!ACTIVE[job.state]);
+    bar.setAttribute('aria-valuenow', String(pct));
+    li.querySelector('.fill').style.width = (FINAL[job.state] && job.state !== 'done' ? Math.max(pct, 0) : pct) + '%';
+    li.querySelector('.job-warn').textContent = (job.warnings || []).join(' ');
+    var err = job.error ? String(job.error) : '';
+    if (err && !/[.!?]$/.test(err)) err += '.';
+    li.querySelector('.job-err').textContent = job.state === 'failed' && err ? err + ' Original kept.' : '';
+    var final = !!FINAL[job.state];
+    li.querySelector('[data-action="retry"]').hidden = !(job.state === 'failed' || job.state === 'cancelled' || job.state === 'skipped');
+    li.querySelector('[data-action="cancel"]').hidden = final;
+    li.querySelector('[data-action="ignore"]').hidden = job.state === 'done';
+  }
+
+  function renderCounts() {
+    var c = { active: 0, queued: 0, done: 0, failed: 0 };
+    state.order.forEach(function (id) {
+      var j = state.jobs[id];
+      if (!j) return;
+      if (ACTIVE[j.state]) c.active++;
+      else if (j.state === 'queued') c.queued++;
+      else if (j.state === 'done') c.done++;
+      else if (j.state === 'failed') c.failed++;
+    });
+    $('count-active').textContent = c.active;
+    $('count-queued').textContent = c.queued;
+    $('count-done').textContent = c.done;
+    $('count-failed').textContent = c.failed;
+  }
+
+  function resetJobs(jobs) {
+    state.jobs = {};
+    state.order = [];
+    $('queue').innerHTML = '';
+    (jobs || []).forEach(upsertJob);
+    if (!state.order.length) {
+      var li = el('li', 'empty', 'Nothing queued. Load a clip in Arena or drop a file into a watch folder.');
+      $('queue').appendChild(li);
+    }
+    renderCounts();
+  }
+
+  $('queue').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-action]');
+    if (!b) return;
+    var li = b.closest('.job');
+    api('POST', '/api/jobs/' + encodeURIComponent(li.dataset.id) + '/' + b.dataset.action).catch(showError);
+  });
+
+  $('clear-finished').addEventListener('click', function () {
+    api('POST', '/api/jobs/clear').then(function () {
+      return api('GET', '/api/state');
+    }).then(function (s) { resetJobs(s.jobs); }).catch(showError);
+  });
+
+  $('add-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var p = $('add-path').value.trim();
+    if (!p) return;
+    api('POST', '/api/convert', { path: p }).then(function () { $('add-path').value = ''; }).catch(showError);
+  });
+
+  // ---------- Logs ----------
+  function addLog(entry) {
+    var logs = $('logs');
+    var atBottom = logs.scrollTop + logs.clientHeight >= logs.scrollHeight - 20;
+    var line = el('div', entry.level);
+    var t = new Date(entry.t);
+    line.textContent = t.toLocaleTimeString() + '  ' + entry.msg;
+    logs.appendChild(line);
+    while (logs.childNodes.length > 500) logs.removeChild(logs.firstChild);
+    if (atBottom) logs.scrollTop = logs.scrollHeight;
+  }
+
+  function showError(err) {
+    addLog({ t: Date.now(), level: 'error', msg: 'Control panel: ' + (err && err.message ? err.message : String(err)) });
+  }
+
+  // ---------- Settings ----------
+  function fields() { return Array.prototype.slice.call(document.querySelectorAll('[data-key]')); }
+
+  function fillSettings(s) {
+    state.settings = s;
+    fields().forEach(function (f) {
+      if (document.activeElement === f) return;
+      var v = s[f.dataset.key];
+      if (f.type === 'checkbox') f.checked = !!v;
+      else if (f.dataset.list) f.value = (v || []).join('\n');
+      else f.value = v === undefined || v === null ? '' : String(v);
+    });
+    renderCapabilityWarning();
+    renderMode();
+  }
+
+  function readSettings() {
+    var out = {};
+    fields().forEach(function (f) {
+      var k = f.dataset.key;
+      if (f.type === 'checkbox') out[k] = f.checked;
+      else if (f.type === 'number') out[k] = Number(f.value);
+      else if (f.dataset.list) out[k] = f.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+      else out[k] = f.value;
+    });
+    return out;
+  }
+
+  function openDrawer(open) {
+    $('settings-drawer').classList.toggle('open', open);
+    $('settings-drawer').inert = !open;
+    $('scrim').hidden = !open;
+  }
+
+  $('open-settings').addEventListener('click', function () { openDrawer(true); });
+  $('close-settings').addEventListener('click', function () { openDrawer(false); });
+  $('scrim').addEventListener('click', function () { openDrawer(false); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') openDrawer(false); });
+  $('settings-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    api('PUT', '/api/settings', readSettings()).then(function (s) {
+      fillSettings(s);
+      $('saved').hidden = false;
+      setTimeout(function () { $('saved').hidden = true; }, 1500);
+    }).catch(showError);
+  });
+  $('refresh-backends').addEventListener('click', function () {
+    api('POST', '/api/backends/refresh').then(renderBackends).catch(showError);
+  });
+
+  function renderBackends(list) {
+    state.backends = list || [];
+    var tb = $('backends');
+    tb.innerHTML = '';
+    var sel = $('s-backend');
+    var current = state.settings ? state.settings.backend : 'auto';
+    sel.innerHTML = '';
+    var auto = el('option', '', 'Auto');
+    auto.value = 'auto';
+    sel.appendChild(auto);
+    state.backends.forEach(function (b) {
+      var tr = el('tr');
+      var name = el('td', '', b.label);
+      var status = el('td', b.caps.available ? 'yes' : 'no', b.caps.available ? 'Ready' : 'Unavailable');
+      if (b.caps.reason) { status.appendChild(el('br')); status.appendChild(el('small', '', b.caps.reason)); }
+      var can = el('td', '', b.caps.codec.toUpperCase() + ' · ' + b.caps.qualities.join('/') + (b.caps.alpha ? ' · alpha' : ' · no alpha'));
+      if (b.caps.notes && b.caps.notes.length) {
+        var ul = el('ul');
+        b.caps.notes.forEach(function (n) { ul.appendChild(el('li', '', n)); });
+        can.appendChild(ul);
+      }
+      tr.appendChild(name); tr.appendChild(status); tr.appendChild(can);
+      tb.appendChild(tr);
+      var o = el('option', '', b.label);
+      o.value = b.id;
+      sel.appendChild(o);
+    });
+    sel.value = current;
+    renderCapabilityWarning();
+  }
+
+  /** Tells the user up front when their settings ask for something no installed backend can do. */
+  function renderCapabilityWarning() {
+    var s = state.settings;
+    var box = $('capability-warning');
+    if (!s || !state.backends.length) { box.hidden = true; return; }
+    var pool = state.backends.filter(function (b) { return b.caps.available && b.caps.codec === s.codec; });
+    var msgs = [];
+    if (!pool.length) msgs.push('No ' + s.codec.toUpperCase() + ' encoder is available. Nothing will be converted.');
+    else {
+      if (s.quality === 'high' && !pool.some(function (b) { return b.caps.qualities.indexOf('high') >= 0; })) {
+        msgs.push('High Quality is not available with the installed backends. ' + (s.onHqUnavailable === 'skip' ? 'Files will be skipped.' : 'Files will be encoded as Normal Quality.'));
+      }
+      if (s.alpha !== 'off' && !pool.some(function (b) { return b.caps.alpha; })) {
+        msgs.push('Alpha is not available with the installed backends. ' + (s.onAlphaUnavailable === 'skip' ? 'Sources with alpha will be skipped and keep playing the original.' : 'Alpha will be dropped (black background).'));
+      }
+    }
+    box.textContent = msgs.join(' ');
+    box.hidden = !msgs.length;
+  }
+
+  function renderFfmpeg() {
+    var n = $('ffmpeg-notice');
+    var f = state.ffmpeg;
+    if (!f) { n.textContent = 'ffmpeg not found. Set its path in Settings > Tools.'; n.hidden = false; return; }
+    if (!f.dxv) { n.textContent = 'ffmpeg ' + f.version + ' has no DXV encoder. Needs ffmpeg 7.0 or newer.'; n.hidden = false; return; }
+    n.hidden = true;
+  }
+
+  function renderUpdate() {
+    var u = state.update;
+    var b = $('update-banner');
+    if (u && u.available) {
+      $('update-text').textContent = 'Version ' + u.latest + ' is available. You have ' + u.current + '.';
+      if (u.url) $('update-link').href = u.url;
+      b.hidden = false;
+    } else b.hidden = true;
+  }
+
+  function renderMode() {
+    var testServed = isTestPage || (state.settings && state.settings.testMode && location.pathname === '/');
+    $('mode-badge').hidden = !testServed;
+    document.title = (testServed ? '[TEST] ' : '') + 'Resolume Auto Render';
+    $('version-line').textContent = state.version ? 'Version ' + state.version : '';
+  }
+
+  // ---------- Live link ----------
+  var ws = null;
+  var backoff = 500;
+  function connect() {
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    ws = new WebSocket(proto + location.host + '/ws');
+    ws.onopen = function () {
+      uiLinked = true;
+      backoff = 500;
+      document.body.dataset.ws = 'open';
+      renderStatus();
+    };
+    ws.onmessage = function (ev) {
+      var msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      switch (msg.type) {
+        case 'state':
+          state.version = msg.version;
+          state.status = msg.status;
+          state.update = msg.update;
+          state.ffmpeg = msg.ffmpeg;
+          fillSettings(msg.settings);
+          renderBackends(msg.backends);
+          resetJobs(msg.jobs);
+          $('logs').innerHTML = '';
+          (msg.logs || []).forEach(addLog);
+          renderStatus(); renderUpdate(); renderFfmpeg(); renderMode();
+          break;
+        case 'job': upsertJob(msg.job); break;
+        case 'status': state.status = msg.status; renderStatus(); break;
+        case 'log': addLog(msg.entry); break;
+        case 'settings': fillSettings(msg.settings); break;
+        case 'backends': renderBackends(msg.backends); break;
+        case 'update': state.update = msg.update; renderUpdate(); break;
+        default: break;
+      }
+    };
+    ws.onclose = function () {
+      uiLinked = false;
+      document.body.dataset.ws = 'closed';
+      renderStatus();
+      setTimeout(connect, backoff);
+      backoff = Math.min(backoff * 2, 5000);
+    };
+    ws.onerror = function () { /* onclose handles retry */ };
+  }
+
+  renderMode();
+  connect();
+})();
+</script>
+</body>
+</html>

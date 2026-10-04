@@ -12,7 +12,7 @@ import {
 } from './paths.js';
 import { ArenaConnection, type ConnectionStatus } from './resolume/connection.js';
 import { ClipTracker, type MediaChange } from './resolume/tracker.js';
-import { swapClipFile, ClipChangedError } from './resolume/swap.js';
+import { swapClipFile, waitUntilNotLive, ClipChangedError } from './resolume/swap.js';
 import { FolderWatcher } from './folders.js';
 import type { Encoder, EncoderEnv, Capabilities } from './encoders/types.js';
 import { FfmpegDxvEncoder } from './encoders/ffmpeg-dxv.js';
@@ -241,6 +241,10 @@ export class Service extends EventEmitter {
       } else {
         ctx.update({ state: 'swapping', detail: 'Loading into clip', progress: 0.96 });
         try {
+          if (!s.swapWhileLive) {
+            await waitUntilNotLive(this.arena.rest, job.clip, ctx.signal, () => ctx.update({ detail: 'Converted. Waiting for the clip to stop playing.' }));
+            ctx.update({ detail: 'Loading into clip' });
+          }
           const r = await swapClipFile(this.arena.rest, job.clip, src, output, {
             uriStyle: s.fileUriStyle,
             restoreProps: s.restoreClipProps,

@@ -16,8 +16,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "npm run build && node dist/src/cli.js",
-    "dev": "tsc -p tsconfig.json && node dist/src/cli.js --open",
+    "start": "npm run build && node scripts/fetch-ffmpeg.mjs --optional && node dist/src/cli.js --open",
+    "dev": "npm run build && node dist/src/cli.js",
     "test": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
     "test:ui": "node scripts/ui-gate.mjs index.test.html",
@@ -28,7 +28,8 @@
     "fetch-ffmpeg": "node scripts/fetch-ffmpeg.mjs",
     "check-arena": "node scripts/check-arena.mjs",
     "app": "npm run build && electron .",
-    "dist": "npm run build && electron-builder --publish never"
+    "dist": "npm run build && electron-builder --publish never",
+    "check-prod": "node scripts/check-prod.mjs"
   },
   "dependencies": {
     "chokidar": "^5.0.0",
@@ -45,5 +46,67 @@
     "playwright": "^1.56.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
+  },
+  "build": {
+    "appId": "com.bryanchorton.resolumeautorender",
+    "productName": "Resolume Auto Render",
+    "artifactName": "Resolume-Auto-Render-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/src/**/*.js",
+      "dist/electron/**/*.js",
+      "index.html",
+      "index.test.html",
+      "package.json",
+      "build/tray*.png",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/ffmpeg/${platform}-${arch}",
+        "to": "ffmpeg",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "dmg": {
+      "title": "Resolume Auto Render ${version}"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "msi"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "msi": {
+      "oneClick": false,
+      "perMachine": false
+    },
+    "publish": null
   }
 }

@@ -95,7 +95,8 @@ export class ArenaConnection extends EventEmitter {
 
   private async connect(): Promise<void> {
     if (this.stopped) return;
-    this.setStatus({ state: 'connecting' });
+    // Stay "disconnected" during retries so the UI does not flicker.
+    if (!this.status.lastError) this.setStatus({ state: 'connecting' });
     try {
       const product = await this.rest.product();
       if (this.stopped) return;
@@ -115,7 +116,7 @@ export class ArenaConnection extends EventEmitter {
     if (this.stopped) return;
     const wasConnected = this.status.state === 'connected';
     this.teardown();
-    this.setStatus({ state: 'disconnected', websocket: false, lastError: err instanceof Error ? err.message : String(err) });
+    this.setStatus({ state: 'disconnected', websocket: false, lastError: describeError(err) });
     if (wasConnected) this.emit('disconnected');
     const delay = this.backoff;
     this.backoff = Math.min(this.opts.maxBackoffMs ?? 10000, this.backoff * 2);
@@ -184,4 +185,12 @@ export class ArenaConnection extends EventEmitter {
       this.polling = false;
     }
   }
+}
+
+function describeError(err: unknown): string {
+  const e = err as { name?: string; message?: string; cause?: { code?: string } };
+  if (e?.cause?.code === 'ECONNREFUSED') return 'connection refused (web server off or wrong port)';
+  if (e?.cause?.code) return e.cause.code;
+  if (e?.name === 'TimeoutError') return 'timed out';
+  return e?.message || String(err);
 }

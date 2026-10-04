@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon
+            os: macos-latest
+            args: --mac --arm64
+          - name: macOS Intel
+            os: macos-15-intel
+            args: --mac --x64
+          - name: Windows x64
+            os: windows-latest
+            args: --win --x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Tag matches package.json version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version $v"; exit 1; }
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Fetch and verify ffmpeg
+        run: npm run fetch-ffmpeg
+      - run: npm test
+      - run: npm run test:integration
+      - run: npm run build
+      - name: Package
+        shell: bash
+        env:
+          # Signing is optional. Without these secrets the installers are unsigned (see README).
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$CSC_LINK" ] && [ -z "$WIN_CSC_LINK" ]; then export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
+          npx electron-builder ${{ matrix.args }} --publish never
+      - name: Smoke-check packaged ffmpeg
+        shell: bash
+        run: |
+          f=$(find release -path '*Resources/ffmpeg/ffmpeg' -o -path '*resources/ffmpeg/ffmpeg.exe' | head -1)
+          echo "packaged ffmpeg: $f"
+          "$f" -hide_banner -encoders | grep -E '^ V.* dxv '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.msi
+            vendor/ffmpeg/*/SOURCE.json
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Collect files
+        run: |
+          mkdir out
+          find dist -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) -exec cp {} out/ \;
+          for f in dist/*/vendor/ffmpeg/*/SOURCE.json; do p=$(basename $(dirname "$f")); cp "$f" "out/ffmpeg-$p.json"; done
+          (cd out && sha256sum * > SHA256SUMS.txt)
+          ls -la out
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
+          body: |
+            Unsigned builds unless signing secrets are configured. See README > Install for the Gatekeeper and SmartScreen steps.
+            `ffmpeg-<platform>.json` lists the bundled ffmpeg build, its source URL and SHA-256.

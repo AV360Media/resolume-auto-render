@@ -212,3 +212,20 @@ describe('model helpers', () => {
     expect(valuesOnly({ id: 1, controls: { speed: { id: 2, valuetype: 'ParamRange', value: 2, min: 0 }, list: [1] } })).toEqual({ controls: { speed: { value: 2 } } });
   });
 });
+
+describe('live clip handling', () => {
+  it('waits while the clip is playing', async () => {
+    const { rest } = await setup();
+    const clip = arena!.userLoad(1, 1, '/clips/live.mp4');
+    clip.connected.value = 'Connected';
+    const { waitUntilNotLive, isLive } = await import('../../src/resolume/swap.js');
+    expect(isLive(clip as any)).toBe(true);
+    let waited = false;
+    const ctl = new AbortController();
+    const p = waitUntilNotLive(rest, { id: clip.id, layer: 1, column: 1, name: '' }, ctl.signal, () => (waited = true), 30);
+    await new Promise((r) => setTimeout(r, 120));
+    expect(waited).toBe(true);
+    clip.connected.value = 'Disconnected';
+    await p;
+  });
+});
