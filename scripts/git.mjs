@@ -5,16 +5,17 @@ import { fileURLToPath } from 'node:url';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export function git(args, { allowFail = false } = {}) {
+export function git(args, { allowFail = false, raw = false } = {}) {
   const r = spawnSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true });
   if (r.error) throw new Error(`git not available: ${r.error.message}`);
   if (r.status !== 0 && !allowFail) throw new Error(`git ${args.join(' ')} failed: ${(r.stderr || r.stdout).trim()}`);
-  return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
+  return { ok: r.status === 0, out: raw ? r.stdout || '' : (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
 
 /** Paths with uncommitted changes, including untracked files that are not ignored. */
 export function dirtyPaths() {
-  const out = git(['status', '--porcelain', '-z', '--untracked-files=all']).out;
+  // raw: porcelain lines start with a status column that may be a space.
+  const out = git(['status', '--porcelain', '-z', '--untracked-files=all'], { raw: true }).out;
   if (!out) return [];
   const parts = out.split('\0').filter(Boolean);
   const paths = [];
