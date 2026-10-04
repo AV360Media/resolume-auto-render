@@ -41,7 +41,9 @@ export class ClipTracker extends EventEmitter {
   update(comp: ArenaComposition): MediaChange[] {
     const next = flattenClips(comp, this.toNative);
     const changes: MediaChange[] = [];
-    const first = !this.hasBaseline;
+    // No clip id survived: Arena restarted or another composition was opened. Treat as a new baseline.
+    const replaced = this.clips.size > 0 && next.length > 0 && !next.some((c) => this.clips.has(c.id));
+    const first = !this.hasBaseline || replaced;
     const nextMap = new Map<number, ClipInfo>();
     for (const c of next) {
       nextMap.set(c.id, c);

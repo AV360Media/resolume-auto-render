@@ -34,6 +34,7 @@ function isComposition(msg: any): msg is ArenaComposition {
  *   'composition' (comp, source: 'ws' | 'poll')
  *   'connected'   after Arena becomes reachable (also after an Arena restart)
  *   'disconnected'
+ *   'session-reset' when the WebSocket drops; clip ids may have changed (Arena restart, new composition)
  */
 export class ArenaConnection extends EventEmitter {
   readonly rest: ArenaRest;
@@ -140,8 +141,11 @@ export class ArenaConnection extends EventEmitter {
       if (this.ws !== ws) return;
       this.ws = null;
       this.setStatus({ websocket: false });
-      // REST polling decides whether Arena is gone. Retry the socket while Arena is up.
-      if (!this.stopped && this.status.state === 'connected') {
+      if (this.stopped) return;
+      this.emit('session-reset');
+      // Check right away whether Arena is gone, then retry the socket while it is up.
+      void this.pollOnce();
+      if (this.status.state === 'connected') {
         setTimeout(() => {
           if (!this.stopped && this.status.state === 'connected' && !this.ws) this.openWebSocket();
         }, 2000);

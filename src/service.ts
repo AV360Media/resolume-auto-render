@@ -81,6 +81,7 @@ export class Service extends EventEmitter {
       this.tracker.reset();
       this.log.warn('Lost connection to Arena. Retrying.');
     });
+    this.arena.on('session-reset', () => this.tracker.reset());
     this.arena.on('composition', (comp) => this.tracker.update(comp));
     this.tracker.on('media-changed', (ch: MediaChange) => this.onClipMedia(ch));
     this.folders = new FolderWatcher((f) => this.onFolderFile(f), (m) => this.log.warn(m));
