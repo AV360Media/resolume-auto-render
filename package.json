@@ -1,0 +1,49 @@
+{
+  "name": "resolume-auto-render",
+  "productName": "Resolume Auto Render",
+  "version": "0.1.0",
+  "description": "Converts video loaded into Resolume Arena to DXV in the background and swaps it into the same clip.",
+  "license": "MIT",
+  "author": "bryanchorton",
+  "type": "module",
+  "main": "dist/electron/main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bryanchorton/resolume-auto-render.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/src/cli.js",
+    "dev": "tsc -p tsconfig.json && node dist/src/cli.js --open",
+    "test": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:ui": "node scripts/ui-gate.mjs index.test.html",
+    "test:ui:prod": "node scripts/ui-gate.mjs index.html",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "promote": "node scripts/promote.mjs",
+    "rollback": "node scripts/rollback.mjs",
+    "fetch-ffmpeg": "node scripts/fetch-ffmpeg.mjs",
+    "check-arena": "node scripts/check-arena.mjs",
+    "app": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --publish never"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/ws": "^8.18.2",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
+    "html-validate": "^11.16.2",
+    "playwright": "^1.56.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

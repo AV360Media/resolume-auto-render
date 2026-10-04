@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+.backups/
+vendor/ffmpeg/
+*.log
+.DS_Store
+coverage/
+test-output/
