@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Manual run from main: builds and publishes v<package.json version>, creating the tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,6 +33,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Tag matches package.json version
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
           v=$(node -p "require('./package.json').version")
@@ -78,6 +81,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - name: Release tag
+        id: tag
+        run: echo "name=v$(node -p "require('./src/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -91,6 +100,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: out/*
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           body: |
             Unsigned builds unless signing secrets are configured. See README > Install for the Gatekeeper and SmartScreen steps.

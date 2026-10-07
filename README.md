@@ -156,7 +156,7 @@ Layout: `src/` service (TypeScript), `electron/` tray shell, `scripts/` gate, pr
 
 ## Releasing
 
-Bump `version` in `package.json`, commit, then `git tag v0.2.0 && git push origin v0.2.0`. The Release workflow builds macOS arm64, macOS x64 and Windows x64 installers, verifies the bundled ffmpeg, and attaches everything to a GitHub Release with SHA-256 sums.
+Bump `version` in `package.json` and commit to `main`. Then either push a tag (`git tag v0.2.0 && git push origin v0.2.0`) or run the Release workflow manually from the Actions tab, which creates the tag `v<version>` itself. The Release workflow builds macOS arm64, macOS x64 and Windows x64 installers, verifies the bundled ffmpeg, and attaches everything to a GitHub Release with SHA-256 sums.
 
 ## Signing
 
