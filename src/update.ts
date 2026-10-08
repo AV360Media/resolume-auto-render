@@ -1,4 +1,4 @@
-export const REPO = 'bryanchorton/resolume-auto-render';
+export const REPO = 'AV360Media/resolume-auto-render';
 
 export interface UpdateInfo {
   current: string;

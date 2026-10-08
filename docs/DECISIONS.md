@@ -55,7 +55,7 @@ Chosen: Electron. Cost: ~100 MB installed plus ffmpeg (~80 MB). Reliability over
 Builds: macOS arm64 and x64 as separate dmgs (smaller than universal; ffmpeg is per-arch). Windows x64 as NSIS `.exe` and `.msi`. Unsigned unless signing secrets exist (README > Signing).
 
 ## 11. Auto-update: check only
-The app checks `https://api.github.com/repos/bryanchorton/resolume-auto-render/releases/latest` (unauthenticated, at start and daily) and offers the release page. It does not self-install: silent updates need signed builds on macOS, and replacing the app mid-show is a bad default. The repo must be public for this check to work without a token.
+The app checks `https://api.github.com/repos/AV360Media/resolume-auto-render/releases/latest` (unauthenticated, at start and daily) and offers the release page. It does not self-install: silent updates need signed builds on macOS, and replacing the app mid-show is a bad default. The repo must be public for this check to work without a token.
 
 ## 12. ffmpeg bundling
 `scripts/fetch-ffmpeg.mjs` downloads a static build per platform (BtbN LGPL for Windows/Linux, Martin Riedl's builds for macOS, with fallbacks), then verifies it by running a real DXV encode and decode, and records source URL and SHA-256 hashes in `SOURCE.json`, published with each release. The app searches: settings path, `RAR_FFMPEG`, bundled, then PATH, and picks the first ffmpeg that has the encoder a backend needs (the HAP encoder needs snappy, missing from some static builds).
@@ -69,4 +69,4 @@ The panel binds to 127.0.0.1 only and rejects requests whose Host or Origin is n
 `index.test.html` is the only UI file developers edit. `npm run promote` gates it (html-validate, inline JS syntax, ESLint, Playwright smoke test against `scripts/mock-companion.mjs`), copies it to `index.html`, backs up the old file in `.backups/`, commits and pushes. CI runs the gate on both files and `scripts/check-prod.mjs` fails if `index.html` does not equal some committed `index.test.html`, which catches direct edits.
 
 ## 15. Repository
-Created as `bryanchorton/resolume-auto-render`, public (MIT, and the update check needs public releases). Work happens on `main` only.
+Created as `bryanchorton/resolume-auto-render` (renamed to `AV360Media/resolume-auto-render` when the account was renamed), public (MIT, and the update check needs public releases). Work happens on `main` only.

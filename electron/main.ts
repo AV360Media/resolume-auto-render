@@ -77,7 +77,7 @@ function updateTrayMenu() {
     { type: 'separator' },
     { label: 'Start at Login', type: 'checkbox', checked: login, click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: ['--hidden'] }) },
     update.available
-      ? { label: `Download version ${update.latest}…`, click: () => shell.openExternal(update.url || 'https://github.com/bryanchorton/resolume-auto-render/releases') }
+      ? { label: `Download version ${update.latest}…`, click: () => shell.openExternal(update.url || 'https://github.com/AV360Media/resolume-auto-render/releases') }
       : { label: 'Check for Updates', click: () => void checkUpdatesInteractive() },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
@@ -90,7 +90,7 @@ async function checkUpdatesInteractive() {
   const u = await running.service.checkUpdates();
   if (u.available) {
     const r = await dialog.showMessageBox({ message: `Version ${u.latest} is available. You have ${u.current}.`, buttons: ['Download', 'Later'], defaultId: 0 });
-    if (r.response === 0) void shell.openExternal(u.url || 'https://github.com/bryanchorton/resolume-auto-render/releases');
+    if (r.response === 0) void shell.openExternal(u.url || 'https://github.com/AV360Media/resolume-auto-render/releases');
   } else {
     await dialog.showMessageBox({ message: u.error ? `Could not check for updates: ${u.error}` : `You have the latest version (${u.current}).` });
   }

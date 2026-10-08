@@ -35,7 +35,7 @@ The settings drawer shows the same table for your machine and warns when a setti
 
 ## Install
 
-Download from [Releases](https://github.com/bryanchorton/resolume-auto-render/releases):
+Download from [Releases](https://github.com/AV360Media/resolume-auto-render/releases):
 
 - macOS Apple Silicon: `Resolume-Auto-Render-<version>-mac-arm64.dmg`
 - macOS Intel: `Resolume-Auto-Render-<version>-mac-x64.dmg`

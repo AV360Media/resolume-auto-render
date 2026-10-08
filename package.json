@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Converts video loaded into Resolume Arena to DXV in the background and swaps it into the same clip.",
   "license": "MIT",
-  "author": "bryanchorton",
+  "author": "AV360Media",
   "type": "module",
   "main": "dist/electron/main.js",
   "engines": {
@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bryanchorton/resolume-auto-render.git"
+    "url": "https://github.com/AV360Media/resolume-auto-render.git"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
